@@ -1,0 +1,182 @@
+# Pipeline de CI/CD da plataforma Unifica (seção 6.3 do PIM).
+#
+#   PR ou push  ─► build + testes ─┐
+#                  banco (SQL)  ───┼─► imagem ─► homologação ─► [aprovação] ─► produção
+#                  infra (IaC)  ───┘          (só na branch main)
+#
+# Autenticação no Azure por OIDC (credencial federada): nenhuma senha do Azure fica
+# guardada no GitHub. Variáveis do repositório: AZURE_CLIENT_ID, AZURE_TENANT_ID,
+# AZURE_SUBSCRIPTION_ID. O ambiente "producao" exige revisores (aprovação manual).
+#
+# Segurança da cadeia de suprimentos: as ações usam apenas publicadores oficiais
+# (GitHub e Microsoft). Recomenda-se fixá-las pelo SHA do commit, pois tags podem ser
+# reapontadas (como no ataque ao trivy-action em março de 2026).
+
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-testes:
+    name: Build e testes (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar
+        # EnableWindowsTargeting permite compilar o módulo WPF no runner Linux.
+        run: dotnet restore AlunosTech.Unifica.slnx -p:EnableWindowsTargeting=true
+
+      - name: Compilar (avisos dos analisadores viram erro)
+        run: dotnet build AlunosTech.Unifica.slnx -c Release --no-restore -p:EnableWindowsTargeting=true
+
+      - name: Testes unitários e de integração
+        run: dotnet test tests/AlunosTech.Unifica.Testes -c Release --no-build --logger trx --results-directory resultados
+
+      - name: Dependências com vulnerabilidade conhecida (DevSecOps)
+        run: |
+          dotnet list AlunosTech.Unifica.slnx package --vulnerable --include-transitive | tee vulneraveis.txt
+          if grep -q "has the following vulnerable packages" vulneraveis.txt; then
+            echo "::error::Há pacotes com vulnerabilidades conhecidas."; exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resultados-testes
+          path: resultados
+
+  banco:
+    name: Scripts do banco (SQL Server em contêiner)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Subir SQL Server descartável
+        run: |
+          # Senha aleatória gerada a cada execução (não precisa de segredo no repositório).
+          SENHA="Ci-$(openssl rand -hex 12)-Aa1"
+          echo "::add-mask::$SENHA"
+          echo "SA_SENHA=$SENHA" >> "$GITHUB_ENV"
+          docker run -d --name sqlserver -p 1433:1433 -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$SENHA" \
+            mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 30); do
+            docker exec sqlserver /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SENHA" -Q "SELECT 1" \
+              > /dev/null 2>&1 && exit 0
+            sleep 5
+          done
+          echo "::error::SQL Server não ficou disponível."; docker logs sqlserver; exit 1
+      - name: Executar scripts 01–07 e testes de fumaça (99)
+        run: |
+          docker run --rm --network host -e SA_SENHA -e SERVIDOR=localhost \
+            -v "$PWD/database:/scripts:ro" --entrypoint /bin/bash \
+            mcr.microsoft.com/mssql/server:2022-latest /scripts/inicializar.sh
+
+  infra:
+    name: Validação de IaC e manifestos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compilar Bicep
+        run: az bicep build --file deploy/infra/main.bicep --stdout > /dev/null
+      - name: Renderizar manifestos Kubernetes (kustomize)
+        run: |
+          kubectl kustomize deploy/k8s/homologacao > /dev/null
+          kubectl kustomize deploy/k8s/producao > /dev/null
+
+  imagem:
+    name: Imagem de contêiner
+    # Só roda na main e quando o acesso ao Azure estiver configurado no repositório.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    needs: [build-testes, banco, infra]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build e push para o ACR de homologação
+        run: |
+          az acr login --name acrunificahml
+          IMAGEM=acrunificahml.azurecr.io/unifica-api:${{ github.sha }}
+          docker build -t "$IMAGEM" .
+          docker push "$IMAGEM"
+          # A varredura de vulnerabilidades da imagem é feita pelo Microsoft
+          # Defender for Containers diretamente no ACR.
+
+  homologacao:
+    name: Deploy em homologação
+    needs: imagem
+    runs-on: ubuntu-latest
+    environment: homologacao
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Aplicar manifestos no AKS
+        run: |
+          az aks get-credentials -g rg-unifica-hml -n aks-unifica-hml --overwrite-existing
+          cd deploy/k8s/homologacao
+          kustomize edit set image unifica-api=acrunificahml.azurecr.io/unifica-api:${{ github.sha }}
+          kubectl apply -k .
+          kubectl -n unifica-homologacao rollout status deployment/unifica-api --timeout=180s
+
+  producao:
+    name: Deploy em produção
+    needs: homologacao
+    runs-on: ubuntu-latest
+    environment: producao   # requer aprovação manual de um revisor
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Promover a mesma imagem testada em homologação
+        run: |
+          az acr import --name acrunificaprd \
+            --source acrunificahml.azurecr.io/unifica-api:${{ github.sha }} \
+            --image unifica-api:${{ github.sha }}
+      - name: Aplicar manifestos no AKS
+        run: |
+          az aks get-credentials -g rg-unifica-prd -n aks-unifica-prd --overwrite-existing
+          cd deploy/k8s/producao
+          kustomize edit set image unifica-api=acrunificaprd.azurecr.io/unifica-api:${{ github.sha }}
+          kubectl apply -k .
+          kubectl -n unifica-producao rollout status deployment/unifica-api --timeout=300s
+      - name: Reverter em caso de falha
+        if: failure()
+        run: kubectl -n unifica-producao rollout undo deployment/unifica-api
