@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ViewModels e cliente HTTP do módulo desktop. Não depende de WPF, por isso
+       roda nos testes automatizados em qualquer sistema operacional. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AlunosTech.Unifica.Aplicacao\AlunosTech.Unifica.Aplicacao.csproj" />
+  </ItemGroup>
+
+</Project>

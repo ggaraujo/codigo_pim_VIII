@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Abstrações de DI e configuração vêm do framework compartilhado do ASP.NET Core. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AlunosTech.Unifica.Aplicacao\AlunosTech.Unifica.Aplicacao.csproj" />
+  </ItemGroup>
+
+</Project>

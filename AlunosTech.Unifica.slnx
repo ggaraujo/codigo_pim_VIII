@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AlunosTech.Unifica.Api/AlunosTech.Unifica.Api.csproj" />
+    <Project Path="src/AlunosTech.Unifica.Aplicacao/AlunosTech.Unifica.Aplicacao.csproj" />
+    <Project Path="src/AlunosTech.Unifica.Desktop.Nucleo/AlunosTech.Unifica.Desktop.Nucleo.csproj" />
+    <Project Path="src/AlunosTech.Unifica.Desktop/AlunosTech.Unifica.Desktop.csproj" />
+    <Project Path="src/AlunosTech.Unifica.Dominio/AlunosTech.Unifica.Dominio.csproj" />
+    <Project Path="src/AlunosTech.Unifica.Infraestrutura/AlunosTech.Unifica.Infraestrutura.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AlunosTech.Unifica.Testes/AlunosTech.Unifica.Testes.csproj" />
+  </Folder>
+</Solution>

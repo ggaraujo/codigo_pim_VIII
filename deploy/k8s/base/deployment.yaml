@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unifica-api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0      # atualização sem indisponibilidade
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unifica-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: unifica-api
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: unifica-api
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # Réplicas distribuídas entre zonas de disponibilidade.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: unifica-api
+      containers:
+        - name: api
+          image: unifica-api   # substituída pelo kustomize (ACR + tag do commit)
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: unifica-api
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # "vivo": reinicia o contêiner travado. "pronto": tira do balanceamento
+          # enquanto o banco estiver inacessível.
+          livenessProbe:
+            httpGet:
+              path: /saude/vivo
+              port: 8080
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /saude/pronto
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

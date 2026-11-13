@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: unifica-producao
+resources:
+  - ../base
+images:
+  - name: unifica-api
+    newName: acrunificaprd.azurecr.io/unifica-api
+    newTag: latest   # o pipeline troca pela tag do commit (kustomize edit set image)

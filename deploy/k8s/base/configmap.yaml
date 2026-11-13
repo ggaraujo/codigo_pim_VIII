@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unifica-api
+data:
+  Persistencia__Provedor: "SqlServer"
+  Autenticacao__Modo: "EntraId"
+  Autenticacao__Authority: "https://login.microsoftonline.com/<id-do-tenant>/v2.0"
+  Autenticacao__Audience: "api://unifica-api"
+  # Sem usuário e senha: autenticação pela identidade de carga de trabalho do AKS.
+  ConnectionStrings__Unifica: "Server=tcp:<servidor>.database.windows.net,1433;Database=Unifica;Authentication=Active Directory Workload Identity;Encrypt=True"

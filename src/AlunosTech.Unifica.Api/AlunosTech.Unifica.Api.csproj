@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Validação de tokens JWT do Microsoft Entra ID. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
+    <!-- Provedor ADO.NET do SQL Server, registrado por nome em ConfiguracaoInfraestrutura. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.2" />
+    <!-- A partir da v7, a autenticação Entra ID (identidade de carga de trabalho do AKS)
+         fica neste pacote de extensão. -->
+    <PackageReference Include="Microsoft.Data.SqlClient.Extensions.Azure" Version="7.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AlunosTech.Unifica.Infraestrutura\AlunosTech.Unifica.Infraestrutura.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+<Project>
+  <!-- Configurações comuns a todos os projetos da solução (seção 4.5 do PIM). -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Analisadores Roslyn: avisos viram erro no build, para que o pipeline de CI
+         barre código fora do padrão antes do merge (PERES, 2026b, p. 239). -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

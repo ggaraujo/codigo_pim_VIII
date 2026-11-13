@@ -1,0 +1,21 @@
+# Entrada HTTPS pelo add-on de roteamento de aplicativos do AKS (NGINX gerenciado).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unifica-api
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  tls:
+    - hosts: ["api.unifica.alunostech.example"]
+      secretName: unifica-api-tls
+  rules:
+    - host: api.unifica.alunostech.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: unifica-api
+                port:
+                  number: 80
