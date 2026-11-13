@@ -1,0 +1,32 @@
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_size = 4
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = true:warning
+dotnet_style_readonly_field = true:warning
+csharp_style_var_for_built_in_types = true:suggestion
+# Nomes em português: a regra de "palavras compostas" do analisador de nomes não se aplica.
+dotnet_diagnostic.CA1707.severity = none
+# Mensagens das exceções de domínio são textos de negócio, não recursos localizáveis.
+dotnet_diagnostic.CA1303.severity = none
+# ConfigureAwait não é necessário em ASP.NET Core nem nos testes.
+dotnet_diagnostic.CA2007.severity = none
+# Tipos de testes/DTOs públicos usados por serialização.
+dotnet_diagnostic.CA1819.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1848.severity = none
+# Resultado<T>.Ok/Erro: métodos de fábrica em tipo genérico são intencionais.
+dotnet_diagnostic.CA1000.severity = none
+
+[*.{json,yml,yaml,xml,csproj,props,xaml,bicep}]
+indent_size = 2
+
+[*.sql]
+indent_size = 4
